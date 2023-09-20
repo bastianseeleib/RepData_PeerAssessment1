@@ -4,14 +4,28 @@ output:
   html_document:
     keep_md: true
 ---
+```{r echo=FALSE,message=FALSE}
+library(dplyr)
+library(ggplot2)
+```
 
 
 ## Loading and preprocessing the data
-
+```{r echo=TRUE}
+unzip("activity.zip")
+activity <- read.csv("activity.csv")
+```
 
 
 ## What is mean total number of steps taken per day?
+```{r echo=TRUE}
+activityNoNA <- na.omit(activity)
+byDay <- activityNoNA %>% group_by(date) %>% summarise(dailySteps = sum(steps))
+p <- ggplot(byDay, aes(x=dailySteps)) + geom_histogram(bins=30)
+print(p)
+```
 
+The mean steps per day, excluding NA values, are xxx steps.
 
 
 ## What is the average daily activity pattern?
