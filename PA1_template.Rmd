@@ -7,6 +7,7 @@ output:
 ```{r echo=FALSE,message=FALSE}
 library(dplyr)
 library(ggplot2)
+library(knitr)
 ```
 
 
@@ -14,26 +15,69 @@ library(ggplot2)
 ```{r echo=TRUE}
 unzip("activity.zip")
 activity <- read.csv("activity.csv")
+activityNoNA <- na.omit(activity)
 ```
 
 
 ## What is mean total number of steps taken per day?
 ```{r echo=TRUE}
-activityNoNA <- na.omit(activity)
 byDay <- activityNoNA %>% group_by(date) %>% summarise(dailySteps = sum(steps))
 p <- ggplot(byDay, aes(x=dailySteps)) + geom_histogram(bins=30)
 print(p)
 ```
 
-The mean steps per day, excluding NA values, are xxx steps.
-
+### Median and Mean steps
+```{r echo=TRUE}
+asFrame = data.frame(mean=mean(byDay$dailySteps), median=median(byDay$dailySteps))
+kable(asFrame, format="html", table.attr="style='width:30%;'") %>% kableExtra::kable_styling(position = "left")
+```
 
 ## What is the average daily activity pattern?
+```{r echo=TRUE}
+intervalAverage <- activityNoNA %>% group_by(interval) %>% summarise(avgsteps = mean(steps))
+p <- ggplot(intervalAverage, aes(y=avgsteps, x=interval, group = 1)) + geom_line()
+print(p)
 
+orderedBySteps <- arrange(intervalAverage, desc(avgsteps))
+maxStepsInterval <- orderedBySteps[1,]$interval
+```
 
+Interval `r maxStepsInterval` has the maximum number of steps per day.
 
 ## Imputing missing values
+Total number of rows with NAs: `r dim(activity)[1] - dim(activityNoNA)[1]`
 
+Imputing the missing values with the average for the same interval.
 
+```{r echo=TRUE}
+by <- join_by(interval)
+imputedActivity <- inner_join(activity, intervalAverage, by)
+imputedActivity <- imputedActivity %>% mutate(steps = coalesce(steps,avgsteps))
+
+byDay <- imputedActivity %>% group_by(date) %>% summarise(dailySteps = sum(steps))
+p <- ggplot(byDay, aes(x=dailySteps)) + geom_histogram(bins=30)
+print(p)
+```
+
+### Median and Mean steps
+```{r echo=TRUE}
+asFrame = data.frame(mean=mean(byDay$dailySteps), median=median(byDay$dailySteps))
+kable(asFrame, format="html", table.attr="style='width:30%;'") %>% kableExtra::kable_styling(position = "left")
+```
+
+There is a large difference compared to the values from the first histogram, mean and median are nearly identical.
+NA values most likely mean the smartphone was turned off and the proband was asleep, imputing with average values seams suboptimal.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r echo=TRUE}
+Sys.setlocale("LC_TIME","English")
+imputedActivity$wday <- weekdays(as.Date(imputedActivity$date), abbreviate = TRUE)
+imputedActivity$wday[imputedActivity$wday %in% c("Mon", "Tue", "Wed", "Thu", "Fri")] <- c("weekday")
+imputedActivity$wday[imputedActivity$wday %in% c("Sat", "Sun")] <- c("weekend")
+
+acivityByWeekday <- imputedActivity %>% group_by(wday, interval) %>% summarise(avgsteps = mean(steps))
+
+p <- ggplot(acivityByWeekday, aes(interval, avgsteps))
+p <- p + facet_grid(wday~.) + geom_line()
+print(p)
+```
